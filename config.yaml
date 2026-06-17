@@ -1,0 +1,55 @@
+# Wispr-MR configuration
+# Modify and restart the app to apply changes.
+#
+# PROFILS DE VITESSE — surcharge automatiquement la section stt ci-dessous.
+# Tous utilisent large-v3-turbo (décodeur 4 couches : rapide ET précis sur CPU).
+#   fast     : turbo beam 1 + LLM 1.5b   → latence ~1-2s (polish off = quasi-instant)
+#   balanced : turbo beam 1 + LLM 1.5b   → latence ~2-3s
+#   quality  : turbo beam 5 + LLM 3b     → latence ~3-5s, précision max
+# Surcharge possible en CLI : python app.py --profile fast
+# L'activation du polish, le profil et la langue se règlent AUSSI en direct
+# depuis le panneau de l'overlay (survolez la pastille en bas de l'écran).
+profile: "balanced"
+
+hotkey: "ctrl+space"           # Push-to-talk combination (hold)
+
+audio:
+  sample_rate: 16000           # Hz — must be 16000 for Whisper
+  preroll_ms: 500              # ms of audio captured before hotkey press
+  max_record_s: 120            # Safety cutoff in seconds
+  device: null                 # null = system default input device
+
+stt:
+  model: "large-v3-turbo"      # turbo = rapide+précis (DL auto via HF au 1er run)
+  compute_type: "int8"         # int8 = fastest CPU inference
+  cpu_threads: 0               # 0 = auto-detect physical core count
+  language: null               # null = auto ; "fr" / "en" pour fiabiliser (réglable à chaud)
+  beam_size: 1                 # Lower = faster; 1 is sufficient for dictation
+  best_of: 1
+
+llm:
+  enabled: true
+  provider: "ollama"           # Only provider supported
+  base_url: "http://localhost:11434"
+  model: "qwen2.5:3b-instruct-q4_K_M"
+  fallback_model: "qwen2.5:1.5b-instruct-q4_K_M"
+  timeout_s: 8                 # Fallback to raw Whisper text if exceeded
+  min_chars_for_polish: 15     # Short clips skip LLM polish entirely
+  keep_alive: -1               # -1 = keep model in RAM indefinitely
+  num_predict: 256             # Token cap (dictée = phrases courtes → plus rapide)
+  temperature: 0.2
+
+injection:
+  method: "clipboard"          # clipboard | type
+  two_pass_insertion: false    # Inject raw text first, then polish (fragile)
+  paste_delay_ms: 30           # Delay before Ctrl+V (some apps need more)
+
+ui:
+  overlay: true                # Show floating recording indicator
+  tray: true                   # Show system tray icon
+
+logging:
+  level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  file: "logs/app.log"
+  rotation: "10 MB"
+  retention: "7 days"

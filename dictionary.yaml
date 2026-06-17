@@ -1,0 +1,11 @@
+# Personal vocabulary substitutions
+# Format: "heard phrase": "corrected text"
+# Applied case-insensitively; injected into the LLM system prompt.
+# Restart the app after editing.
+
+substitutions:
+  # Examples — customize for your own names, jargon, acronyms:
+  # "wispr": "Wispr"
+  # "adagia": "Adagia"
+  # "k p i": "KPI"
+  # "a i": "AI"
