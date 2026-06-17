@@ -1,0 +1,45 @@
+# Audio capture
+sounddevice==0.5.1
+numpy==1.26.4
+
+# VAD
+onnxruntime==1.18.1
+silero-vad==5.1.2
+
+# STT
+faster-whisper==1.0.3
+ctranslate2==4.4.0
+
+# LLM (Ollama HTTP client)
+requests==2.32.3
+httpx==0.27.2
+
+# Hotkey
+keyboard==0.13.5
+pynput==1.7.7
+
+# Clipboard injection
+pyperclip==1.9.0
+
+# Windows context
+pywin32==308
+psutil==6.1.0
+
+# UI - Tray
+pystray==0.19.5
+Pillow==10.4.0
+
+# UI - Overlay
+PySide6==6.7.2
+
+# Config & validation
+PyYAML==6.0.2
+ruamel.yaml==0.18.6        # écriture round-trip de config.yaml (préserve commentaires)
+pydantic==2.8.2
+pydantic-settings==2.4.0
+
+# Logging
+loguru==0.7.2
+
+# Packaging (dev)
+pyinstaller==6.10.0
