@@ -1,9 +1,9 @@
 # Wispr MR — Local Offline Voice Dictation (Windows, CPU)
 
-100% local voice dictation inspired by Wispr Flow. Hold a hotkey, speak, release — polished text is inserted at your cursor in any Windows app. No cloud, no API keys, no GPU.
+100% local voice dictation inspired by Wispr Flow. Hold a hotkey, speak, release — text is inserted at your cursor in any Windows app within ~1 second. No cloud, no API keys, no GPU.
 
-- **Speech-to-text:** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`large-v3-turbo`, int8 on CPU)
-- **Text polish:** a small local LLM via [Ollama](https://ollama.com) (optional — falls back to raw transcription if offline)
+- **Speech-to-text:** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`base` by default, int8 on CPU), transcribed **in streaming** while you speak so only the last fraction of a second is processed on release.
+- **Text polish:** a small local LLM via [Ollama](https://ollama.com), applied **in the background** — raw text is inserted instantly, then replaced by the polished version a moment later (falls back to raw if offline).
 - **Output:** clipboard paste into the focused window
 
 ---
@@ -74,11 +74,14 @@ Edit `config.yaml` and restart the app:
 
 | Setting | What it does |
 |---------|-------------|
-| `profile` | `fast` / `balanced` / `quality` — trades latency for accuracy (override at launch with `python app.py --profile fast`) |
+| `profile` | `fast` (Whisper `base`, ≤1s — default) / `balanced` (`small`, ~2-3s) / `quality` (`large-v3-turbo`, slowest, most accurate). Override at launch with `python app.py --profile fast` |
 | `hotkey` | Push-to-talk combination (default `ctrl+space`) |
+| `stt.streaming` | Transcribe progressively during recording so release→insertion stays ~1s (default `true`) |
 | `stt.language` | `null` = auto-detect, or force `"fr"` / `"en"` |
-| `llm.enabled` | Turn the LLM polish on/off |
+| `llm.enabled` | Turn the background LLM polish on/off |
 | `llm.model` | Ollama model used for polishing |
+
+> **Latency note (CPU-only laptops):** Whisper's heavier models are slow on low-power CPUs (e.g. an i7-1355U runs `large-v3-turbo` at ~2× *slower* than real time). To stay under 1 second, `fast`/`base` is the default; switch to `balanced`/`quality` only when you value raw accuracy over speed. The background LLM polish recovers much of the accuracy gap without adding perceived latency.
 
 Add personal vocabulary fixes (names, jargon, acronyms) in `dictionary.yaml`.
 
@@ -126,7 +129,7 @@ python tools/test_transcribe.py path\to\file.wav   # transcribe + report latency
 | **No audio captured** | Check the default microphone in Windows Sound Settings; set `audio.device` in `config.yaml` if needed. |
 | **Hotkey not responding** | Run the terminal/app as administrator (some apps block global hotkeys). |
 | **Ollama not reachable** | Make sure the Ollama app or `ollama serve` is running. Output falls back to raw text otherwise. |
-| **High latency** | Use a lighter setup: `profile: fast` in `config.yaml`, or the 1.5b LLM model. |
+| **High latency** | Make sure `profile: fast` (Whisper `base`) and `stt.streaming: true` in `config.yaml`. Heavier models (`small`/`turbo`) cannot hit ~1s on low-power CPUs. |
 | **Overlay not showing** | Ensure PySide6 installed: `pip install PySide6==6.7.2`. |
 | **First run is slow / downloads a lot** | Whisper downloads its model once (~1.5 GB). Subsequent runs are fast. |
 

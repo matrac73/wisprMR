@@ -155,6 +155,40 @@ class Transcriber:
             list(segments)  # consommer le générateur pour déclencher l'inférence
         logger.info("Whisper warmup done.")
 
+    def transcribe_segment(self, audio: np.ndarray) -> str:
+        """Fast, greedy transcription of one streamed segment.
+
+        Used by the streaming session for chunks committed during recording and
+        for the final tail. Always beam_size=1 (greedy = lowest latency), VAD on
+        to drop any silence we included, and the segment is peak-normalised to
+        match the amplitude the offline path feeds the model.
+        """
+        if audio is None or len(audio) == 0:
+            return ""
+        peak = float(np.max(np.abs(audio)))
+        if peak > 1e-6:
+            audio = (audio / peak).astype(np.float32)
+        with self._lock:
+            try:
+                segments, _ = self._model.transcribe(
+                    audio,
+                    language=self.language,
+                    beam_size=1,
+                    best_of=1,
+                    condition_on_previous_text=False,
+                    initial_prompt=self.initial_prompt,
+                    vad_filter=True,
+                    vad_parameters={"min_silence_duration_ms": 300},
+                    word_timestamps=False,
+                )
+                return " ".join(seg.text.strip() for seg in segments).strip()
+            except ValueError:
+                # VAD filtered everything (silence) → empty segment.
+                return ""
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("transcribe_segment error: {}", exc)
+                return ""
+
     def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> TranscriptionResult:
         """
         Transcribe audio array.

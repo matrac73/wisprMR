@@ -36,11 +36,15 @@ class HotkeyListener:
         hotkey: str = "ctrl+space",
         on_press: Optional[Callable[[], None]] = None,
         on_release: Optional[Callable[[], None]] = None,
+        on_cancel: Optional[Callable[[], None]] = None,
         min_hold_ms: int = 300,
     ) -> None:
         self.hotkey = hotkey
         self.on_press = on_press
         self.on_release = on_release
+        # Called when a press is released too quickly (below min_hold_ms) so the
+        # app can tear down anything on_press started (e.g. a streaming session).
+        self.on_cancel = on_cancel
         self.min_hold_ms = min_hold_ms
 
         self._pressed = False
@@ -67,6 +71,11 @@ class HotkeyListener:
         self._pressed = False
         if held_ms < self.min_hold_ms:
             logger.debug("Hotkey held only {:.0f}ms — ignoring (too short).", held_ms)
+            if self.on_cancel:
+                try:
+                    self.on_cancel()
+                except Exception as exc:
+                    logger.exception("on_cancel callback error: {}", exc)
             return
         logger.debug("Hotkey released after {:.0f}ms.", held_ms)
         if self.on_release:

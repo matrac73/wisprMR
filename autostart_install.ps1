@@ -65,7 +65,7 @@ Dim WShell
 Set WShell = CreateObject("WScript.Shell")
 WShell.CurrentDirectory = "$projectDir"
 WShell.Environment("PROCESS")("PYTHONPATH") = "$sitePkgs"
-WShell.Run """$basePythonw"" ""$appScript"" --profile balanced", 0, False
+WShell.Run """$basePythonw"" ""$appScript"" --profile fast", 0, False
 "@
 
 Set-Content -Path $vbsPath -Value $vbsContent -Encoding ASCII
@@ -77,7 +77,7 @@ Write-Host ""
 Write-Host "     Fichier     : $vbsPath"
 Write-Host "     Executable  : $basePythonw"
 Write-Host "     PYTHONPATH  : $sitePkgs"
-Write-Host "     Profil      : balanced"
+Write-Host "     Profil      : fast"
 Write-Host ""
 Write-Host "     Tester maintenant (sans redemarrer) :"
 Write-Host "         wscript.exe '$vbsPath'"

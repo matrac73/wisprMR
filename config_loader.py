@@ -16,21 +16,26 @@ from pydantic import BaseModel, Field
 # rapide sur CPU ET plus précis que small/medium). Les profils ne touchent PAS
 # à `llm.enabled` : l'activation du polish est un réglage indépendant piloté
 # par le toggle du panneau overlay (clé top-level `llm.enabled`).
+# NB : sur ce CPU portable (i7-1355U, sans GPU), large-v3-turbo tourne à ~2x
+# PLUS LENT que le temps réel → incompatible avec l'objectif ≤1s. Les profils
+# rapides utilisent donc des modèles plus légers (small/base) + la transcription
+# en streaming (la majeure partie du travail est faite PENDANT que l'on parle).
+# 'quality' garde turbo pour la précision maximale, au prix de la latence.
 PROFILES: dict[str, dict] = {
     "fast": {
-        # Décodage glouton (beam 1) : latence STT minimale (~1-2s sur CPU).
-        # Combiné au polish désactivé → expérience quasi-instantanée (Wispr Flow).
-        "stt": {"model": "large-v3-turbo", "compute_type": "int8", "beam_size": 1, "best_of": 1},
+        # base (~0.7s pour 5s d'audio) + streaming → insertion quasi-instantanée.
+        "stt": {"model": "base", "compute_type": "int8", "beam_size": 1, "best_of": 1, "streaming": True},
         "llm": {"model": "qwen2.5:1.5b-instruct-q4_K_M", "timeout_s": 4},
     },
     "balanced": {
-        # Beam 1 + LLM léger 1.5b : bon compromis précision/latence (~2-3s).
-        "stt": {"model": "large-v3-turbo", "compute_type": "int8", "beam_size": 1, "best_of": 1},
+        # small (~2s pour 5s) + streaming : bon compromis précision/latence, ≤1s perçu.
+        "stt": {"model": "small", "compute_type": "int8", "beam_size": 1, "best_of": 1, "streaming": True},
         "llm": {"model": "qwen2.5:1.5b-instruct-q4_K_M", "timeout_s": 5},
     },
     "quality": {
-        # Beam 5 + LLM 3b : précision maximale, dictionnaire perso (~3-5s).
-        "stt": {"model": "large-v3-turbo", "compute_type": "int8", "beam_size": 5, "best_of": 5},
+        # large-v3-turbo : précision maximale. LENT sur ce CPU (~8s+) même avec
+        # le streaming — à réserver aux cas où la latence importe peu.
+        "stt": {"model": "large-v3-turbo", "compute_type": "int8", "beam_size": 5, "best_of": 5, "streaming": True},
         "llm": {"model": "qwen2.5:3b-instruct-q4_K_M", "timeout_s": 8},
     },
 }
@@ -48,12 +53,13 @@ class AudioConfig(BaseModel):
 
 
 class SttConfig(BaseModel):
-    model: str = "large-v3-turbo"
+    model: str = "base"
     compute_type: str = "int8"
     cpu_threads: int = 0
     language: Optional[str] = None
     beam_size: int = 1
     best_of: int = 1
+    streaming: bool = True       # transcribe progressively while recording
 
 
 class LlmConfig(BaseModel):
