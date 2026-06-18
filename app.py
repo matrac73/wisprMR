@@ -38,6 +38,7 @@ class WisprApp:
         self.cfg = None
         self._enabled = True
         self._pipeline_lock = threading.Lock()
+        self._stream_session = None  # active StreamingSession during recording
 
         # Module instances (initialised in setup())
         self.audio = None
@@ -177,6 +178,7 @@ class WisprApp:
             hotkey=self.cfg.hotkey,
             on_press=self._on_hotkey_press,
             on_release=self._on_hotkey_release,
+            on_cancel=self._on_hotkey_cancel,
             min_hold_ms=300,
         )
         self.hotkey_listener.start()
@@ -213,6 +215,7 @@ class WisprApp:
             return
         if self.audio:
             self.audio.begin_recording()
+            self._start_streaming()
         if self.overlay:
             from ui.overlay import OverlayState
 
@@ -220,12 +223,58 @@ class WisprApp:
         if self.tray:
             self.tray.set_recording(True)
 
+    def _start_streaming(self) -> None:
+        """Begin progressive transcription so most STT work happens while the
+        user is still speaking (keeps release→insertion latency low)."""
+        if not self.transcriber or not getattr(self.cfg.stt, "streaming", True):
+            return
+        # Defensively retire any session left over from a prior recording.
+        if self._stream_session is not None:
+            try:
+                self._stream_session.cancel()
+            except Exception:
+                pass
+            self._stream_session = None
+        try:
+            from stt.streaming import StreamingSession
+
+            session = StreamingSession(
+                self.transcriber, sample_rate=self.cfg.audio.sample_rate
+            )
+            # Seed with the pre-roll captured just before the key press.
+            preroll = self.audio.preroll_snapshot()
+            if preroll.size:
+                session.feed(preroll)
+            session.start()
+            self._stream_session = session
+            self.audio.set_live_consumer(session.feed)
+        except Exception as exc:  # noqa: BLE001 — fall back to offline STT
+            logger.warning("Streaming session failed to start: {}", exc)
+            self._stream_session = None
+
     def _on_hotkey_release(self) -> None:
         if not self._enabled or not self.audio:
             return
         # Run pipeline in a background thread to avoid blocking the hotkey listener
         t = threading.Thread(target=self._run_pipeline, daemon=True, name="pipeline")
         t.start()
+
+    def _on_hotkey_cancel(self) -> None:
+        """Press was too short to be a real dictation — tear down cleanly so the
+        streaming worker doesn't leak and the UI doesn't stay stuck on REC."""
+        if self.audio:
+            self.audio.set_live_consumer(None)
+            self.audio.end_recording()  # reset recording state, discard audio
+        session = self._stream_session
+        self._stream_session = None
+        if session:
+            session.cancel()
+        if self.tray:
+            self.tray.set_recording(False)
+        if self.overlay:
+            from ui.overlay import OverlayState
+
+            self.overlay.set_state(OverlayState.IDLE)
 
     def _run_pipeline(self) -> None:
         with self._pipeline_lock:
@@ -239,65 +288,104 @@ class WisprApp:
                 if self.overlay:
                     from ui.overlay import OverlayState
 
-                    self.overlay.set_state(OverlayState.DONE)
-                    time.sleep(1.2)
+                    time.sleep(0.8)
                     self.overlay.set_state(OverlayState.IDLE)
 
     def _pipeline(self) -> None:
-        # 1. Get audio
+        # Detach the streaming consumer and take ownership of the session.
+        session = self._stream_session
+        self._stream_session = None
+        if self.audio:
+            self.audio.set_live_consumer(None)
+
+        # End capture (resets recording state; full audio is the offline fallback).
         audio = self.audio.end_recording()
         if len(audio) < self.cfg.audio.sample_rate * 0.3:
             logger.debug("Audio too short — ignoring.")
+            if session:
+                session.cancel()
             return
 
-        # 2. Active window context
+        # Active window context (for the LLM polish hint).
         from context.active_window import get_active_process_name
 
         ctx = get_active_process_name() or ""
         logger.debug("Active process: {}", ctx)
 
-        # 3. STT
         if not self.transcriber:
             logger.warning("No STT available.")
+            if session:
+                session.cancel()
             return
+
         if self.overlay:
             from ui.overlay import OverlayState
 
             self.overlay.set_state(OverlayState.TRANSCRIBING)
-        result = self.transcriber.transcribe(audio)
-        raw_text = result.text
+
+        # STT — streaming finishes the short tail; offline path transcribes all.
+        t0 = time.perf_counter()
+        if session is not None:
+            raw_text = session.finish()
+        else:
+            raw_text = self.transcriber.transcribe(audio).text
+        logger.info(
+            "STT release→text: {:.2f}s | mode={} | text={!r}",
+            time.perf_counter() - t0,
+            "stream" if session is not None else "offline",
+            raw_text[:80],
+        )
         if not raw_text:
             logger.info("Empty transcription — nothing to inject.")
             return
 
-        # Apply personal dictionary substitutions post-STT
+        # Apply personal dictionary substitutions post-STT.
         if self.dictionary:
             raw_text = self.dictionary.apply(raw_text)
 
-        # 4. Two-pass: inject raw immediately (optional)
-        two_pass = self.cfg.injection.two_pass_insertion and self.polisher is not None
-        if two_pass and self.injector:
-            self.injector.inject_raw(raw_text)
-
-        # 5. LLM polish
-        polished_text = raw_text
-        if self.polisher:
-            if self.overlay:
-                from ui.overlay import OverlayState
-
-                self.overlay.set_state(OverlayState.POLISHING)
-            polished_text = self.polisher.polish(raw_text, context_hint=ctx)
-            if self.dictionary:
-                polished_text = self.dictionary.apply(polished_text)
-
-        # 6. Inject
         if not self.injector:
             logger.warning("No injector available.")
             return
-        if two_pass:
-            self.injector.replace_with_polished(polished_text)
+
+        # Insert the raw text IMMEDIATELY — this is where perceived latency ends.
+        polish_active = (
+            self.polisher is not None
+            and getattr(self.polisher, "enabled", False)
+            and len(raw_text) >= self.cfg.llm.min_chars_for_polish
+        )
+        if polish_active:
+            self.injector.inject_raw(raw_text)
         else:
-            self.injector.inject(polished_text)
+            self.injector.inject(raw_text)
+
+        if self.overlay:
+            from ui.overlay import OverlayState
+
+            self.overlay.set_state(OverlayState.DONE)
+
+        # Polish off the critical path: refine in the background, then replace.
+        if polish_active:
+            self._polish_and_replace(raw_text, ctx)
+
+    def _polish_and_replace(self, raw_text: str, ctx: str) -> None:
+        """Run the LLM polish after raw insertion and swap in the result."""
+        if self.overlay:
+            from ui.overlay import OverlayState
+
+            self.overlay.set_state(OverlayState.POLISHING)
+        polished = self.polisher.polish(raw_text, context_hint=ctx)
+        if self.dictionary:
+            polished = self.dictionary.apply(polished)
+        # Guard against an LLM that ignored "output text only" and added prose.
+        sane = polished and len(polished) <= len(raw_text) * 2 + 40
+        if sane and polished != raw_text:
+            self.injector.replace_with_polished(polished)
+        elif not sane:
+            logger.warning("Polish output looks off — keeping raw text.")
+        if self.overlay:
+            from ui.overlay import OverlayState
+
+            self.overlay.set_state(OverlayState.DONE)
 
     # ------------------------------------------------------------------
     # Tray actions

@@ -70,6 +70,19 @@ class AudioCapture:
         self._recording = False
         self._stream: Optional[sd.InputStream] = None
         self._lock = threading.Lock()
+        # Optional consumer fed every live chunk during recording (streaming STT).
+        self._live_consumer: Optional[Callable[[np.ndarray], None]] = None
+
+    def set_live_consumer(
+        self, consumer: Optional[Callable[[np.ndarray], None]]
+    ) -> None:
+        """Register/clear a callback fed each live audio chunk while recording."""
+        with self._lock:
+            self._live_consumer = consumer
+
+    def preroll_snapshot(self) -> np.ndarray:
+        """Current pre-roll buffer contents (audio captured just before press)."""
+        return self._ring.snapshot()
 
     def _audio_callback(
         self,
@@ -91,7 +104,9 @@ class AudioCapture:
                 pass
 
         with self._lock:
-            if self._recording:
+            recording = self._recording
+            consumer = self._live_consumer
+            if recording:
                 self._live.append(chunk)
                 live_total = sum(len(c) for c in self._live)
                 if live_total >= self.max_record_frames:
@@ -99,6 +114,13 @@ class AudioCapture:
                     self._recording = False
             else:
                 self._ring.push(chunk)
+
+        # Feed the streaming consumer outside the lock (it has its own).
+        if recording and consumer is not None:
+            try:
+                consumer(chunk)
+            except Exception:
+                pass
 
     def start_stream(self) -> None:
         """Open the sounddevice input stream (call once at startup)."""
