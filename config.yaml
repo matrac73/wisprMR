@@ -36,7 +36,7 @@ stt:
   streaming: true              # transcrit pendant l'enregistrement → latence ↓↓
 
 llm:
-  enabled: true
+  enabled: false
   provider: "ollama"           # Only provider supported
   base_url: "http://localhost:11434"
   model: "qwen2.5:3b-instruct-q4_K_M"
