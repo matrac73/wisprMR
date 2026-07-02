@@ -35,6 +35,8 @@ CE QUE TU NE FAIS JAMAIS :
 
 DICTIONNAIRE PERSONNEL (si présent, substitutions à appliquer telles quelles) :{dict_section}
 
+CONTEXTE (application/fenêtre active — indicatif uniquement : peut t'aider à choisir entre deux graphies ou lever une ambiguïté de registre, ne justifie jamais une reformulation) :{context_section}
+
 SORTIE :
 Tu renvoies UNIQUEMENT le texte corrigé. Pas de préambule, pas de guillemets englobants, pas de commentaire, pas d'explication, pas de balises.
 """
@@ -76,8 +78,11 @@ class Polisher:
         self.temperature = temperature
         self.enabled = True
         self.substitutions = substitutions or {}
-        self._system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            dict_section=_build_dict_section(self.substitutions)
+        # dict_section est fige ici ; context_section reste un placeholder litteral
+        # (rempli a chaque appel dans _call_ollama, le contexte changeant a chaque dictee).
+        self._system_prompt_template = SYSTEM_PROMPT_TEMPLATE.format(
+            dict_section=_build_dict_section(self.substitutions),
+            context_section="{context_section}",
         )
 
     # ------------------------------------------------------------------
@@ -121,11 +126,13 @@ class Polisher:
         except Exception as exc:
             logger.warning("Ollama warmup failed (non-fatal): {}", exc)
 
-    def _call_ollama(self, text: str, model: str) -> str:
+    def _call_ollama(self, text: str, model: str, context_hint: str = "") -> str:
+        context_section = f" {context_hint}" if context_hint else " (aucun)"
+        system_prompt = self._system_prompt_template.format(context_section=context_section)
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": self._system_prompt},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text},
             ],
             "stream": False,
@@ -152,7 +159,7 @@ class Polisher:
 
         Args:
             raw_text: Output from Whisper.
-            context_hint: Active window process name (for logging/future use).
+            context_hint: Active window process name + titre (aide au ton/registre).
 
         Returns:
             Polished text, or raw_text on failure/short input.
@@ -167,23 +174,45 @@ class Polisher:
 
         t0 = time.perf_counter()
         try:
-            polished = self._call_ollama(raw_text, self.model)
-            latency_s = time.perf_counter() - t0
+            polished = self._call_ollama(raw_text, self.model, context_hint)
             logger.info(
                 "LLM | model={} | latency={:.2f}s | raw={!r} | polished={!r}",
                 self.model,
-                latency_s,
+                time.perf_counter() - t0,
                 raw_text[:60],
                 polished[:60],
             )
             return polished
         except httpx.TimeoutException:
             logger.warning(
-                "Ollama timeout after {:.1f}s — using raw Whisper text.", self.timeout_s
+                "Ollama timeout after {:.1f}s ({}).", self.timeout_s, self.model
             )
         except httpx.ConnectError:
             logger.warning("Ollama not reachable — using raw Whisper text.")
+            return raw_text
         except Exception as exc:
             logger.warning("Ollama error: {} — using raw Whisper text.", exc)
+            return raw_text
+
+        # Le modele principal a timeout (souvent un cold start) : un seul essai
+        # avec le modele de repli, plus petit donc plus rapide, avant d'abandonner.
+        if self.fallback_model and self.fallback_model != self.model:
+            t1 = time.perf_counter()
+            try:
+                polished = self._call_ollama(raw_text, self.fallback_model, context_hint)
+                logger.info(
+                    "LLM fallback | model={} | latency={:.2f}s | raw={!r} | polished={!r}",
+                    self.fallback_model,
+                    time.perf_counter() - t1,
+                    raw_text[:60],
+                    polished[:60],
+                )
+                return polished
+            except Exception as exc:
+                logger.warning(
+                    "Ollama fallback model '{}' also failed: {} — using raw Whisper text.",
+                    self.fallback_model,
+                    exc,
+                )
 
         return raw_text

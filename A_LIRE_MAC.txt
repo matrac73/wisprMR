@@ -1,0 +1,36 @@
+Wispr MR - Installation Mac simple
+==================================
+
+1. Dezipper le dossier recu.
+
+2. Double-cliquer sur :
+
+   INSTALL.command
+
+3. Suivre les instructions affichees dans la fenetre Terminal.
+
+4. Si macOS demande des autorisations, accepter :
+
+   - Microphone
+   - Accessibility / Accessibilite
+   - Input Monitoring / Surveillance de l'entree
+
+5. Utilisation :
+
+   - Cliquer dans une zone de texte
+   - Maintenir Ctrl + Espace
+   - Parler
+   - Relacher
+
+Pour desinstaller :
+
+   Double-cliquer sur UNINSTALL.command
+
+Note :
+Ollama est recommande pour ameliorer la ponctuation et la correction du texte.
+Si l'installateur indique qu'Ollama manque, l'installer depuis :
+
+https://ollama.com/download
+
+Puis relancer INSTALL.command.
+

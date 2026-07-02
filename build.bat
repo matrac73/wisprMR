@@ -1,10 +1,19 @@
 @echo off
 REM Build Wispr MR as a standalone directory (PyInstaller --onedir)
-REM Run from the project root with the venv activated.
+REM Run from the project root after install.bat/setup.ps1 created .venv.
 
 echo Building Wispr MR...
 
-pyinstaller ^
+set "PYINSTALLER=%~dp0.venv\Scripts\pyinstaller.exe"
+if not exist "%PYINSTALLER%" (
+  echo PyInstaller introuvable: %PYINSTALLER%
+  echo Lance d'abord install.bat pour creer .venv et installer les dependances.
+  exit /b 1
+)
+
+"%PYINSTALLER%" ^
+  --noconfirm ^
+  --clean ^
   --onedir ^
   --name wispr_mr ^
   --noconsole ^
@@ -27,6 +36,10 @@ pyinstaller ^
   --hidden-import "yaml" ^
   --hidden-import "pydantic" ^
   --hidden-import "loguru" ^
+  --exclude-module "torch" ^
+  --exclude-module "torchaudio" ^
+  --exclude-module "torchvision" ^
+  --exclude-module "silero_vad" ^
   app.py
 
 echo.

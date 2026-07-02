@@ -77,7 +77,6 @@ class LlmConfig(BaseModel):
 
 class InjectionConfig(BaseModel):
     method: str = "clipboard"
-    two_pass_insertion: bool = False
     paste_delay_ms: int = 30
 
 
@@ -160,7 +159,6 @@ _WRITABLE_KEYS = {
     "stt.beam_size",
     "llm.enabled",
     "llm.model",
-    "injection.two_pass_insertion",
 }
 
 

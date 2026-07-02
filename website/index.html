@@ -1,0 +1,184 @@
+﻿<!doctype html>
+<html lang="fr" data-theme="dark" data-platform="windows" data-os="windows">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Wispr MR transforme la voix en texte sur ordinateur, avec un mode compagnon pour telephone."
+    />
+    <meta name="theme-color" content="#050505" />
+    <title>Wispr MR - Dictee pour PC, Mac et mobile</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23050505'/%3E%3Cpath d='M14 35h6V23h-6v12Zm10 10h6V15h-6v30Zm10-6h6V25h-6v14Zm10 10h6V19h-6v30Z' fill='%23fff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <canvas id="pixel-field" aria-hidden="true"></canvas>
+    <div class="noise" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Wispr MR">
+        <span class="brand-mark"></span>
+        <span>Wispr MR</span>
+      </a>
+      <div class="header-right">
+        <nav aria-label="Navigation">
+          <a href="https://github.com/matrac73/wisprMR" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="#how" data-i18n="navHow">Fonctionnement</a>
+        </nav>
+        <div class="controls" aria-label="Preferences">
+          <button class="chip is-active" type="button" data-lang="fr">FR</button>
+          <button class="chip" type="button" data-lang="en">EN</button>
+          <button class="chip" type="button" data-theme-toggle data-i18n="themeLabel">Clair</button>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy reveal">
+          <p class="eyebrow" data-i18n="eyebrow">Local voice dictation</p>
+          <h1>
+            <span data-i18n="heroLine1">Dictez.</span>
+            <span class="outline" data-i18n="heroLine2">Relachez.</span>
+          </h1>
+          <div class="hero-actions">
+            <a class="button primary windows-only" href="./downloads/WisprMR-Setup.exe" download data-i18n="downloadWin">
+              Download
+            </a>
+            <a class="button primary mac-only" href="./downloads/WisprMR-Install.zip" download data-i18n="downloadMac">
+              Download
+            </a>
+            <button class="button primary mobile-only" type="button" data-mobile-native-info data-i18n="downloadMobile">
+              Download
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-panel reveal" aria-label="Apercu de l'interface">
+          <div class="terminal">
+            <div class="terminal-top">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="terminal-grid">
+              <p data-i18n="holdShortcut">hold <b>ctrl + space</b></p>
+              <div class="wave">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <p class="result" data-i18n="sampleText">"On se cale un point demain matin."</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <article class="reveal">
+          <strong>100%</strong>
+          <span data-i18n="metricLocal">local sur ordinateur</span>
+        </article>
+        <article class="reveal">
+          <strong>x4</strong>
+          <span data-i18n="metricSpeed">la vitesse d'ecriture</span>
+        </article>
+        <article class="reveal">
+          <strong>100 %</strong>
+          <span data-i18n="metricFree">free + open source</span>
+        </article>
+      </section>
+
+      <section class="scroll-band" aria-label="Processus">
+        <div class="ticker">
+          <span>Record</span>
+          <span>Transcribe</span>
+          <span>Polish</span>
+          <span>Paste</span>
+          <span>Repeat</span>
+        </div>
+      </section>
+
+      <section id="how" class="how-scrolly" data-scrolly>
+        <div class="how-sticky">
+          <div class="how-intro">
+            <p class="eyebrow" data-i18n="howEyebrow">Fonctionnement</p>
+            <h2 data-i18n="howTitle">Ce qui se passe sous le capot.</h2>
+          </div>
+          <div class="system-map" aria-label="Schema technique Wispr MR">
+            <div class="orbit-ring"></div>
+            <div class="flow-node node-platform" data-step-node="0">
+              <span>OS</span>
+              <b data-i18n="nodePlatform">OS</b>
+            </div>
+            <div class="flow-node node-mic" data-step-node="1">
+              <span>REC</span>
+              <b data-i18n="nodeMic">Mic</b>
+            </div>
+            <div class="flow-node node-boot" data-step-node="2">
+              <span>RUN</span>
+              <b data-i18n="nodeBoot">Boot</b>
+            </div>
+            <div class="flow-node node-stt" data-step-node="3">
+              <span>W</span>
+              <b data-i18n="nodeStt">STT</b>
+            </div>
+            <div class="flow-node node-polish" data-step-node="4">
+              <span>AI</span>
+              <b data-i18n="nodePolish">Polish</b>
+            </div>
+            <div class="flow-node node-paste" data-step-node="5">
+              <span>TXT</span>
+              <b data-i18n="nodePaste">Paste</b>
+            </div>
+            <svg class="flow-lines" viewBox="0 0 720 420" role="img" aria-hidden="true">
+              <path d="M112 110 C230 70, 310 80, 390 132 S555 210, 610 104" />
+              <path d="M112 310 C238 360, 322 326, 402 274 S536 212, 610 310" />
+              <path d="M360 208 L112 110 M360 208 L610 104 M360 208 L112 310 M360 208 L610 310" />
+            </svg>
+            <div class="flow-core">
+              <span class="core-pulse"></span>
+              <b>Wispr MR</b>
+              <small data-i18n="coreLabel">local pipeline</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="how-steps">
+          <article class="scrolly-step" data-step="0" data-detail-fr="Le site lit le user-agent, distingue Windows, macOS, Android et iPhone, puis masque tous les mauvais boutons." data-detail-en="The site reads the user agent, separates Windows, macOS, Android, and iPhone, then hides every wrong button.">
+            <span>01</span>
+            <h3 data-i18n="howOneTitle">Detection cross-platform</h3>
+            <p data-i18n="howOneBody">Un seul bouton Download apparait. PC reçoit le setup Windows, Mac reçoit le pack macOS, mobile reçoit le parcours app native.</p>
+          </article>
+          <article class="scrolly-step" data-step="1" data-detail-fr="Le raccourci global ouvre le micro par defaut. Si l'entree change, le prochain enregistrement reprend le micro systeme courant." data-detail-en="The global shortcut opens the default microphone. If the input changes, the next recording uses the current system mic.">
+            <span>02</span>
+            <h3 data-i18n="howTwoTitle">Capture micro automatique</h3>
+            <p data-i18n="howTwoBody">Maintenir le raccourci enregistre la voix via le micro systeme, sans choisir de device a chaque fois.</p>
+          </article>
+          <article class="scrolly-step" data-step="2" data-detail-fr="Windows utilise le dossier Startup ou une tache; macOS passe par LaunchAgent. Uninstall retire ces points d'entree." data-detail-en="Windows uses Startup or a task; macOS uses LaunchAgent. Uninstall removes those entry points.">
+            <span>03</span>
+            <h3 data-i18n="howThreeTitle">Autostart propre</h3>
+            <p data-i18n="howThreeBody">L'outil peut se lancer au demarrage de l'ordinateur et rester disponible en arriere-plan.</p>
+          </article>
+          <article class="scrolly-step" data-step="3" data-detail-fr="Le modele Whisper/faster-whisper est configurable dans config.yaml : tiny/base/small/medium/large, langue, device et compute type." data-detail-en="The Whisper/faster-whisper model is configurable in config.yaml: tiny/base/small/medium/large, language, device, and compute type.">
+            <span>04</span>
+            <h3 data-i18n="howFourTitle">Transcription configurable</h3>
+            <p data-i18n="howFourBody">La voix passe dans faster-whisper local. Le modele, la langue et le niveau de precision peuvent etre ajustes.</p>
+          </article>
+          <article class="scrolly-step" data-step="4" data-detail-fr="Le polishing peut normaliser ponctuation, capitalisation, style metier et vocabulaire frequent, avec un modele separe." data-detail-en="Polishing can normalize punctuation, casing, business style, and recurring vocabulary with a separate model.">
+            <span>05</span>
+            <h3 data-i18n="howFiveTitle">Polishing separe</h3>
+            <p data-i18n="howFiveBody">Un second modele peut nettoyer le brut : ponctuation, termes metier, phrases plus nettes.</p>
+          </article>
+          <article class="scrolly-step" data-step="5" data-detail-fr="L'injection clavier colle dans Teams, Outlook, Word, Chrome, Notion, CRM, Slack ou n'importe quel champ texte actif." data-detail-en="Keyboard injection pastes into Teams, Outlook, Word, Chrome, Notion, CRMs, Slack, or any active text field.">
+            <span>06</span>
+            <h3 data-i18n="howSixTitle">Collage partout</h3>
+            <p data-i18n="howSixBody">Le texte final est injecte dans l'app active : mail, meeting notes, navigateur, CRM ou document.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+
+
+

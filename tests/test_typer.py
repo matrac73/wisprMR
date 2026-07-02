@@ -37,7 +37,7 @@ def test_inject_empty_does_nothing():
 
 
 def test_two_pass_replace():
-    injector = TextInjector(method="clipboard", paste_delay_ms=0, two_pass_insertion=True)
+    injector = TextInjector(method="clipboard", paste_delay_ms=0)
     with patch("inject.typer.pyperclip.paste", return_value=""),          patch("inject.typer.pyperclip.copy"),          patch("inject.typer.keyboard.send"),          patch("inject.typer.keyboard.send") as mock_send:
         injector.inject_raw("raw text")  # len = 8
         injector.replace_with_polished("polished")
