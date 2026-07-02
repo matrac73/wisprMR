@@ -6,11 +6,13 @@ import os
 import sys
 import threading
 import time
+import subprocess
 from pathlib import Path
 from typing import Optional
 
-# Must set before any Qt imports on some systems
-os.environ.setdefault("QT_QPA_PLATFORM", "windows")
+# Must be set before any Qt imports on Windows in this app.
+if sys.platform == "win32":
+    os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 
 from loguru import logger
 
@@ -168,7 +170,6 @@ class WisprApp:
         self.injector = TextInjector(
             method=i.method,
             paste_delay_ms=i.paste_delay_ms,
-            two_pass_insertion=i.two_pass_insertion,
         )
 
     def _init_hotkey(self) -> None:
@@ -306,11 +307,14 @@ class WisprApp:
                 session.cancel()
             return
 
-        # Active window context (for the LLM polish hint).
-        from context.active_window import get_active_process_name
+        # Active window context (for the LLM polish hint): process name + title,
+        # ex. "Outlook.EXE — Re: Budget 2026". Aide le LLM a matcher le ton/registre.
+        from context.active_window import get_active_process_name, get_active_window_title
 
-        ctx = get_active_process_name() or ""
-        logger.debug("Active process: {}", ctx)
+        proc = get_active_process_name() or ""
+        title = (get_active_window_title() or "").strip()[:80]
+        ctx = f"{proc} — {title}" if proc and title else (proc or title)
+        logger.debug("Active window context: {!r}", ctx)
 
         if not self.transcriber:
             logger.warning("No STT available.")
@@ -505,9 +509,13 @@ class WisprApp:
         threading.Thread(target=_reload, daemon=True, name="profile-reload").start()
 
     def _open_config(self) -> None:
-        import subprocess
-
-        subprocess.Popen(["notepad", "config.yaml"])
+        path = str(Path("config.yaml").resolve())
+        if sys.platform == "win32":
+            subprocess.Popen(["notepad", path])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
 
     def _reload(self) -> None:
         logger.info("Reload requested — restarting app.")

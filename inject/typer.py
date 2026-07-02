@@ -1,12 +1,27 @@
 """Text injection into the active window via clipboard + Ctrl+V."""
 from __future__ import annotations
 
+import sys
 import time
 from typing import Optional
 
-import keyboard
 import pyperclip
 from loguru import logger
+
+try:
+    import keyboard
+    _KEYBOARD_AVAILABLE = True
+except ImportError:
+    keyboard = None
+    _KEYBOARD_AVAILABLE = False
+
+try:
+    from pynput.keyboard import Controller, Key
+    _PYNPUT_AVAILABLE = True
+except ImportError:
+    Controller = None
+    Key = None
+    _PYNPUT_AVAILABLE = False
 
 
 class TextInjector:
@@ -19,7 +34,7 @@ class TextInjector:
       3. Send Ctrl+V.
       4. Restore the old clipboard contents after a short delay.
 
-    two_pass_insertion (opt-in):
+    inject_raw() / replace_with_polished() (two-pass):
       First injects raw Whisper text immediately, then when polished text
       arrives, sends N backspaces and pastes the polished version.
       WARNING: Fragile if the cursor moves between the two passes.
@@ -29,14 +44,13 @@ class TextInjector:
         self,
         method: str = "clipboard",
         paste_delay_ms: int = 30,
-        two_pass_insertion: bool = False,
     ) -> None:
         if method not in ("clipboard", "type"):
             raise ValueError(f"Unknown injection method: {method!r}")
         self.method = method
         self.paste_delay_s = paste_delay_ms / 1000.0
-        self.two_pass_insertion = two_pass_insertion
         self._last_raw_len: int = 0
+        self._controller = Controller() if _PYNPUT_AVAILABLE else None
 
     def _save_clipboard(self) -> Optional[str]:
         try:
@@ -57,10 +71,38 @@ class TextInjector:
         try:
             pyperclip.copy(text)
             time.sleep(self.paste_delay_s)
-            keyboard.send("ctrl+v")
+            self._send_paste_shortcut()
             time.sleep(self.paste_delay_s)
         finally:
             self._restore_clipboard(old)
+
+    def _send_paste_shortcut(self) -> None:
+        if sys.platform == "win32" and _KEYBOARD_AVAILABLE:
+            keyboard.send("ctrl+v")
+            return
+        if not self._controller or Key is None:
+            raise RuntimeError("No keyboard controller available for paste shortcut.")
+        modifier = Key.cmd if sys.platform == "darwin" else Key.ctrl
+        with self._controller.pressed(modifier):
+            self._controller.press("v")
+            self._controller.release("v")
+
+    def _send_backspace(self) -> None:
+        if sys.platform == "win32" and _KEYBOARD_AVAILABLE:
+            keyboard.send("backspace")
+            return
+        if not self._controller or Key is None:
+            raise RuntimeError("No keyboard controller available for backspace.")
+        self._controller.press(Key.backspace)
+        self._controller.release(Key.backspace)
+
+    def _type_text(self, text: str) -> None:
+        if sys.platform == "win32" and _KEYBOARD_AVAILABLE:
+            keyboard.write(text, delay=0.01)
+            return
+        if not self._controller:
+            raise RuntimeError("No keyboard controller available for typing.")
+        self._controller.type(text)
 
     def inject(self, text: str) -> None:
         """Inject text at the current cursor position."""
@@ -70,7 +112,7 @@ class TextInjector:
         if self.method == "clipboard":
             self._paste_text(text)
         else:
-            keyboard.write(text, delay=0.01)
+            self._type_text(text)
         logger.info("Injected: {!r}", text[:80])
 
     def inject_raw(self, raw_text: str) -> None:
@@ -86,7 +128,7 @@ class TextInjector:
         """
         if self._last_raw_len > 0:
             for _ in range(self._last_raw_len):
-                keyboard.send("backspace")
+                self._send_backspace()
                 time.sleep(0.002)
         self.inject(polished_text)
         self._last_raw_len = 0

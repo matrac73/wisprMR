@@ -7,7 +7,10 @@
     .\autostart_install.ps1          # installe
     .\autostart_install.ps1 -Remove  # retire
 #>
-param([switch]$Remove)
+param(
+    [ValidateSet("", "fast", "balanced", "quality")][string]$Profile = "",
+    [switch]$Remove
+)
 
 $projectDir  = $PSScriptRoot
 $venvPythonw = Join-Path $projectDir ".venv\Scripts\pythonw.exe"
@@ -15,6 +18,20 @@ $sitePkgs    = Join-Path $projectDir ".venv\Lib\site-packages"
 $appScript   = Join-Path $projectDir "app.py"
 $startupDir  = [Environment]::GetFolderPath("Startup")
 $vbsPath     = Join-Path $startupDir "WisprMR.vbs"
+
+if (-not $Profile) {
+    $configPath = Join-Path $projectDir "config.yaml"
+    if (Test-Path $configPath) {
+        $profileLine = Get-Content -Path $configPath | Where-Object { $_ -match '^\s*profile\s*:' } | Select-Object -First 1
+        if ($profileLine) {
+            $candidateProfile = ($profileLine -replace '^\s*profile\s*:\s*', '').Trim().Trim('"').Trim("'")
+            if ($candidateProfile -in @("fast", "balanced", "quality")) {
+                $Profile = $candidateProfile
+            }
+        }
+    }
+    if (-not $Profile) { $Profile = "fast" }
+}
 
 # Sur ce poste, le pythonw.exe de la venv (créée depuis Anaconda) re-spawne
 # l'interpréteur de base en sous-processus → 2 process pour 1 app. On lance donc
@@ -65,7 +82,7 @@ Dim WShell
 Set WShell = CreateObject("WScript.Shell")
 WShell.CurrentDirectory = "$projectDir"
 WShell.Environment("PROCESS")("PYTHONPATH") = "$sitePkgs"
-WShell.Run """$basePythonw"" ""$appScript"" --profile fast", 0, False
+WShell.Run """$basePythonw"" ""$appScript"" --profile $Profile", 0, False
 "@
 
 Set-Content -Path $vbsPath -Value $vbsContent -Encoding ASCII
@@ -77,7 +94,7 @@ Write-Host ""
 Write-Host "     Fichier     : $vbsPath"
 Write-Host "     Executable  : $basePythonw"
 Write-Host "     PYTHONPATH  : $sitePkgs"
-Write-Host "     Profil      : fast"
+Write-Host "     Profil      : $Profile"
 Write-Host ""
 Write-Host "     Tester maintenant (sans redemarrer) :"
 Write-Host "         wscript.exe '$vbsPath'"
